@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Суровый Флиппинг</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#07070b;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#eee}
+#ph{position:relative;width:min(410px,100vw);height:min(860px,calc(100vh - 20px));background:#12131a;border-radius:44px;border:8px solid #222;box-shadow:0 20px 60px #000;display:flex;flex-direction:column;overflow:hidden}
+#isl{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:100px;height:26px;background:#000;border-radius:18px;z-index:5}
+#sb{display:flex;justify-content:space-between;padding:14px 22px 6px;font-size:13px;font-weight:600;background:#0c0d12}
+#toast{position:absolute;top:44px;left:12px;right:12px;background:#2b2d3aee;border-radius:18px;padding:10px 14px;font-size:13px;z-index:9;transform:translateY(-120px);transition:.3s}
+#toast.on{transform:none}
+#scr{flex:1;overflow:auto;padding:12px}
+#dock{display:flex;justify-content:space-around;padding:8px;background:#0c0d12}
+#dock button{flex:1;margin:0 4px}
+button{background:#2d6cdf;color:#fff;border:0;border-radius:18px;padding:10px 12px;font-size:14px;cursor:pointer;transition:.15s}
+button:active{transform:scale(.96)}button:disabled{background:#444;color:#888}
+button.g{background:#2b2d3a}button.r{background:#c0392b}button.sm{padding:6px 10px;font-size:12px;margin:2px}
+button.gold{background:linear-gradient(90deg,#f7c948,#e8890c);color:#000;font-weight:700;width:100%}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:18px}
+.hd button{padding:4px 12px}
+.c{background:#1c1e29;border-radius:18px;padding:12px;margin-bottom:10px;font-size:14px}
+.c small{color:#9aa}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px;text-align:center}
+.ic{background:#1c1e29;border-radius:18px;padding:14px 4px;font-size:12px;cursor:pointer;position:relative}
+.ic i{display:block;font-size:34px;font-style:normal}
+.bd{position:absolute;top:4px;right:6px;background:#e74c3c;border-radius:9px;padding:0 6px;font-size:11px}
+input{width:100%;background:#0c0d12;color:#fff;border:1px solid #333;border-radius:12px;padding:8px;margin:6px 0}
+#mod{position:absolute;inset:0;background:#000c;z-index:8;display:none;align-items:center;justify-content:center;padding:14px}
+#mod .box{background:#1c1e29;border-radius:22px;padding:14px;width:100%}
+canvas{background:#f4f4f0;border-radius:12px;touch-action:none;width:100%;display:block}
+.bar{height:8px;background:#333;border-radius:4px;overflow:hidden}.bar div{height:100%;background:#4cd964}
+#end{position:absolute;inset:0;background:#000;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;overflow:hidden}
+#pl{font-size:60px;position:absolute;left:-80px;bottom:30%;animation:fly 6s forwards}
+@keyframes fly{to{left:110%;bottom:80%;transform:rotate(-25deg) scale(.4)}}
+</style></head><body>
+<div id="ph"><div id="isl"></div><div id="sb"></div><div id="toast"></div><div id="scr"></div>
+<div id="dock"><button class="g" onclick="go('home')">🏠 Домой</button><button class="g" onclick="go('notes')">🔔 Пуши</button><button class="g" onclick="sleep()">🌙 Спать</button></div>
+<div id="mod"></div><div id="end"></div></div>
+<script>
+const $=id=>document.getElementById(id),R=(a,b)=>Math.floor(Math.random()*(b-a+1))+a,P=a=>a[R(0,a.length-1)];
+const f=n=>Math.round(n).toLocaleString('ru-RU')+' ₽',hh=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.floor(m%60)).padStart(2,'0');
+const DN=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+let gameState={money:200000,day:1,min:480,rep:5,ci:60,sig:null,loans:[],ads:[],appts:[],own:[],notes:[],rev:[],ach:{},sold:0,design:0,net:0,bought:0,maxDisc:0,uid:1,view:'home',ctx:null,over:false,modal:false,peak:0};
+const G=gameState;
+const TY=[['Убитая комната в коммуналке',12,20,45000],['Однушка под ремонт у промзоны',28,40,80000],['Двушка в хрущёвке',42,56,95000],['Сталинка с лепниной',60,90,140000],['Видовой пентхаус',90,150,230000]];
+const DI=['Промзона','Спальный район','Центр','Старый фонд','Новостройки рядом','Окраина'],CO=['Бабушкин треш','Бетон','Косметика','Уставший евро'],CM=[.8,.75,.95,1.05];
+const DEF={sewer:'Гнилая чугунная канализация',rel:'Прописанный родственник',bugs:'Клопы/плесень за плинтусом',noise:'Шумные соседи',clean:'Идеальная чистота'};
+const DP={sewer:.08,rel:.12,bugs:.05,noise:.04,gen:.03};
+const CH=[['🚰 Проверить стояки',20,'sewer',0],['🔨 Простучать стены',20,'bugs',0],['🗣 Опросить соседей',30,'noise',0],['📄 Заказать выписку ЕГРН (1 500 ₽)',40,'rel',1500]];
+const BK=[['ГосБанк 🟢',80,.001,15e6],['Тинь-Банк 🟡',50,.003,3e6],['Быстро-Деньги МФО 🔴',0,.015,5e5]];
+const RP=[['Косметика',3000,1,2,15,20],['Капиталка',9000,3,5,35,50],['Дизайнерский',20000,6,10,80,120]];
+const A=[['Первый кусок бетона',()=>G.bought>=1],['Сделка века',()=>G.maxDisc>2e5],['Любимчик банков',()=>G.ci>=95],['Евроремонтник',()=>G.design>=3],['Миллионер из хрущобы',()=>G.net>=5e7]];
+const TT={cian:'Циан',cal:'Календарь',bank:'Банки',prorab:'Прораб',prof:'Профиль',notes:'Уведомления',ad:'Объявление',insp:'Осмотр'};
+const night=()=>G.min<420||G.min>=1320,inWin=a=>a.day==G.day&&Math.abs(G.min-a.t)<=30;
+const price=a=>Math.round(a.base*(G.rep>=4.5?1:G.rep>=4?1.15:1.3)*(1-a.disc));
+const cl=(x,a,b)=>Math.max(a,Math.min(b,x));
+function toast(m){const t=$('toast');t.textContent=m;t.className='on';clearTimeout(toast.h);toast.h=setTimeout(()=>t.className='',3200)}
+function push(m){G.notes.unshift({d:G.day,t:hh(G.min),m});toast(m)}
+function gen(){const r=Math.random(),i=r<.25?0:r<.55?1:r<.8?2:r<.93?3:4,T=TY[i],ar=R(T[1],T[2]),mv=Math.round(ar*T[3]*(.85+Math.random()*.3)/1000)*1000,c=R(0,3);
+let d=[];if(Math.random()<.15)d=['clean'];else{const k=['sewer','rel','bugs','noise'].sort(()=>Math.random()-.5);d=k.slice(0,R(1,2))}
+return{id:G.uid++,name:T[0],dist:P(DI),fl:R(1,12),ar,mv,cond:c,base:Math.round(mv*CM[c]/1000)*1000,def:d,found:{},chk:{},hag:{},disc:0,refuse:Math.random()<.4}}
+function fill(){while(G.ads.length<6)G.ads.push(gen())}
+function sb(){$('sb').innerHTML=`<span>${hh(G.min)} · ${DN[(G.day-1)%7]} · день ${G.day}</span><span>${f(G.money)}</span><span>🔋${Math.max(5,Math.floor(100-((G.min-480+1440)%1440)/1440*90))}%</span>`}
+function addMin(n){G.min+=n;while(G.min>=1440){G.min-=1440;G.day++;dayEnd()}tick()}
+function tick(){
+ G.appts=G.appts.filter(a=>{if(a.started)return true;if(a.day<G.day||(a.day==G.day&&G.min>a.t+30)){const ad=G.ads.find(x=>x.id==a.ad);G.rep=Math.max(1,G.rep-.4);G.rev.unshift('★1 «Не пришёл на встречу, потратил моё время» — продавец ('+(ad?ad.name:'объект')+')');push('😡 Вы пропустили встречу. Рейтинг −0.4');return false}
+ if(inWin(a)&&!a.pushed){a.pushed=1;push('📅 Встреча в '+hh(a.t)+' — пора ехать на осмотр!')}return true});
+ if(G.view=='insp'&&!G.appts.some(a=>a.id==G.ctx)){G.view='cal'}
+ sb();if(G.view=='cal'||G.view=='home')render();checkAch()}
+function checkAch(){A.forEach((a,i)=>{if(!G.ach[i]&&a[1]()){G.ach[i]=1;push('🏆 Ачивка: '+a[0])}})}
+function dayEnd(){
+ G.loans.forEach(l=>l.amt*=1+l.rate);
+ G.money-=1000;if(G.money<0){G.ci=Math.max(0,G.ci-10);push('⚠️ Нехватка средств при списании. КИ −10')}
+ G.own.forEach(o=>{if(o.st=='rep'&&--o.left<=0){o.st='done';finRep(o)}});
+ G.ads=G.ads.filter(a=>G.appts.some(p=>p.ad==a.id));fill();
+ const debt=G.loans.reduce((s,l)=>s+l.amt,0);if(G.loans.length)push('🏦 Начислены проценты. Долг: '+f(debt));
+ if(G.ci<=0&&G.money<0)over()}
+function finRep(o){let g=1+o.gain/100;const d=o.def;if(d.includes('rel'))g-=.15;if(d.includes('noise'))g-=.05;if(d.includes('clean'))g+=.05;if(d.includes('sewer')&&o.type==0)g-=.12;
+ o.val=Math.round(o.mv*g);if(o.type==2)G.design++;push('🔨 Ремонт «'+o.name+'» завершён. Оценка: '+f(o.val))}
+function sleep(){if(G.min<480)G.min=480;else{G.day++;G.min=480;dayEnd()}push('☀️ Доброе утро! Вы выспались.');tick();render()}
+function go(v,c){G.view=v;G.ctx=c;render()}
+function render(){
+ sb();checkAch();const v=G.view;let h=v=='home'?'':`<div class=hd><button class=g onclick="go('home')">‹</button><b>${TT[v]}</b></div>`;
+ $('scr').innerHTML=h+V[v]()}
+const V={
+home(){const n=G.appts.filter(inWin).length;return`<div class=c>⭐ Рейтинг ${G.rep.toFixed(2)} · 📊 КИ ${G.ci} · 🏠 Объектов: ${G.own.length}</div><div class=grid>
+<div class=ic onclick="go('cian')"><i>🏢</i>Циан</div><div class=ic onclick="go('cal')"><i>📅</i>Календарь${n?`<span class=bd>${n}</span>`:''}</div><div class=ic onclick="go('bank')"><i>🏦</i>Банки</div>
+<div class=ic onclick="go('prorab')"><i>🔨</i>Прораб</div><div class=ic onclick="go('prof')"><i>👤</i>Профиль</div></div>`},
+cian(){return(G.rep<4?'<div class=c style="color:#f88">Низкий рейтинг: цены завышены, часть продавцов не ответит.</div>':'')+G.ads.map(a=>`<div class=c><b>${a.name}</b><br><small>${a.dist} · ${a.fl} эт. · ${a.ar} м² · ${CO[a.cond]}</small><br><b>${f(price(a))}</b> <button class="sm" style="float:right" onclick="go('ad',${a.id})">Открыть</button></div>`).join('')},
+ad(){const a=G.ads.find(x=>x.id==G.ctx);if(!a)return'Объявление снято';const ex=G.appts.find(p=>p.ad==a.id);
+ return`<div class=c><b>${a.name}</b><br><small>${a.dist} · ${a.fl} эт. · ${a.ar} м² · ${CO[a.cond]}</small><br><b>${f(price(a))}</b></div>`+(ex?`<div class=c>Встреча назначена: ${ex.day==G.day?'сегодня':'завтра'} в ${hh(ex.t)}</div>`:`<div class=c>Назначить встречу:<br>${slots(a)||'<small>Нет свободных слотов (ночь — продавцы спят)</small>'}</div>`)},
+cal(){const l=G.appts.slice().sort((a,b)=>a.day*2000+a.t-b.day*2000-b.t);return l.length?l.map(a=>{const ad=G.ads.find(x=>x.id==a.ad);return`<div class=c>${a.day==G.day?'Сегодня':'Завтра'} ${hh(a.t)} — ${ad?ad.name:''}<br>${inWin(a)||a.started?`<button onclick="start(${a.id})">Прийти на осмотр</button>`:'<small>Ждите назначенного времени (±30 мин)</small>'}</div>`}).join(''):'<div class=c>Встреч нет. Загляните в Циан.</div>'},
+insp(){const p=G.appts.find(x=>x.id==G.ctx),a=G.ads.find(x=>x.id==p.ad);
+ return`<div class=c><b>${a.name}</b><br>Цена: <b>${f(price(a))}</b></div><div class=c>🔍 Осмотр:<br>${CH.map((c,i)=>`<button class="sm g" ${a.chk[i]?'disabled':''} onclick="chk(${i})">${c[0]}</button>`).join('')}<br><small>Найдено: ${Object.keys(a.found).map(k=>DEF[k]).join('; ')||'пока ничего'}</small>${Object.keys(a.chk).length==4&&!Object.keys(a.found).length?'<br><small>Скрытых дефектов нет.</small>':''}</div>
+<div class=c>💬 Торг:<br>${Object.keys(a.found).filter(k=>k!='clean').map(k=>`<button class="sm g" ${a.hag[k]?'disabled':''} onclick="hag('${k}')">«${{sewer:'Трубы под замену',rel:'Тут прописан родственник',bugs:'Клопы и плесень',noise:'Соседи шумные'}[k]}, скидывайте ${DP[k]*100}%»</button>`).join('')}<button class="sm g" ${a.hag.gen?'disabled':''} onclick="hag('gen')">«Обои отваливаются, отдавайте дешевле»</button></div>
+<button onclick="buy(${a.id})">Купить за ${f(price(a))}</button> <button class=g onclick="leave(${a.id})">Уйти</button>`},
+bank(){if(night())return'<div class=c>🌙 Банки закрыты (22:00–07:00).</div>';
+ return`<div class=c>📊 Кредитный рейтинг: <b>${G.ci}</b>/100</div>`+G.loans.map((l,i)=>`<div class=c>${BK[l.b][0]}: долг <b>${f(l.amt)}</b> (${l.rate*100}%/день)<br><button class="sm" onclick="repay(${i})">Погасить</button></div>`).join('')+BK.map((b,i)=>`<div class=c><b>${b[0]}</b><br><small>КИ ≥ ${b[1]} · ${b[2]*100}%/день · до ${f(b[3])}</small><input id=ln${i} type=number placeholder="Сумма"><button class="sm ${G.ci<b[1]?'r':''}" onclick="take(${i})">Взять кредит</button></div>`).join('')},
+prorab(){if(!G.own.length)return'<div class=c>Нет объектов. Купите квартиру на Циане.</div>';return G.own.map(o=>{let b='';
+ if(o.st=='raw')b=RP.map((r,i)=>`<button class="sm" onclick="repair(${o.id},${i})">${r[0]} · ${f(rc(o,i))}</button>`).join('');
+ else if(o.st=='rep')b=`<small>Идёт ремонт, осталось дней: ${o.left}</small><div class=bar><div style="width:${100-o.left/o.tot*100}%"></div></div>`;
+ else b=`Оценка: <b>${f(o.val)}</b><input id=sp${o.id} type=number value="${o.val}"><button class="sm" onclick="sell(${o.id})">Выставить на продажу</button>`;
+ return`<div class=c><b>${o.name}</b> <small>${o.ar} м² · куплено за ${f(o.buy)}</small><br>${b}</div>`}).join('')},
+prof(){const all=A.every((a,i)=>G.ach[i]);return`<div class=c>⭐ ${G.rep.toFixed(2)} / 5.0 · КИ ${G.ci}<br>Чистая прибыль: ${f(G.net)}<br>ЭЦП: <br>${G.sig?`<img src="${G.sig}" style="background:#f4f4f0;border-radius:8px;width:150px">`:'нет'}<br><button class="sm r" onclick="reissue()">Перевыпустить ЭЦП (50 000 ₽)</button></div>
+<div class=c><b>Ачивки</b><br>${A.map((a,i)=>`${G.ach[i]?'✅':'⬜'} ${a[0]}`).join('<br>')}</div><div class=c><b>Отзывы</b><br>${G.rev.slice(0,5).join('<br>')||'<small>пусто</small>'}</div>
+${all&&G.money>5e7?'<button class=gold onclick="finish()">✈️ Купить билет в США и визу инвестора</button>':''}`},
+notes(){return G.notes.length?G.notes.slice(0,40).map(n=>`<div class=c><small>день ${n.d}, ${n.t}</small><br>${n.m}</div>`).join(''):'<div class=c>Пока тихо.</div>'}};
+function slots(a){let o='';[0,1].forEach(d=>[600,720,840,990,1080,1200].forEach(t=>{if(d==0&&(t<=G.min+30||night()))return;if(G.appts.some(p=>p.day==G.day+d&&p.t==t))return;o+=`<button class="sm g" onclick="book(${a.id},${d},${t})">${d?'Завтра':'Сегодня'} ${hh(t)}</button>`}));return o}
+function book(id,d,t){const a=G.ads.find(x=>x.id==id);if(G.rep<4&&a.refuse){G.ads=G.ads.filter(x=>x.id!=id);push('🚫 «С перекупами с низким рейтингом дел не имеем»');return go('cian')}
+ G.appts.push({id:G.uid++,ad:id,day:G.day+d,t});push('📅 Встреча назначена на '+hh(t));render()}
+function start(id){const p=G.appts.find(x=>x.id==id);p.started=1;go('insp',id)}
+function chk(i){const p=G.appts.find(x=>x.id==G.ctx),a=G.ads.find(x=>x.id==p.ad),c=CH[i];if(G.money<c[3])return toast('Не хватает денег');G.money-=c[3];a.chk[i]=1;
+ if(a.def.includes(c[2]))a.found[c[2]]=1;if(i==1&&a.def.includes('clean'))a.found.clean=1;G.min+=c[1];sb();render()}
+function hag(k){const p=G.appts.find(x=>x.id==G.ctx),a=G.ads.find(x=>x.id==p.ad);a.hag[k]=1;const ch=G.rep>=4.5?.55:G.rep>=4?.4:.3,r=Math.random();
+ if(r<ch){a.disc+=DP[k];G.maxDisc=Math.max(G.maxDisc,a.base*(G.rep>=4.5?1:G.rep>=4?1.15:1.3)*a.disc);toast('✅ Продавец уступил '+DP[k]*100+'%')}
+ else if(r<ch+.12){toast('💢 Продавец психанул и сорвал сделку');G.ads=G.ads.filter(x=>x.id!=a.id);G.appts=G.appts.filter(x=>x.id!=p.id);return go('cal')}else toast('❌ Продавец отказался');render()}
+function leave(id){G.appts=G.appts.filter(x=>x.ad!=id);go('cal')}
+function buy(id){const a=G.ads.find(x=>x.id==id),pr=price(a);if(G.money<pr)return toast('Не хватает '+f(pr-G.money));
+ sign('Договор купли-продажи',`${a.name}. Сумма: ${f(pr)}`,()=>{G.money-=pr;G.own.push({id:G.uid++,name:a.name,ar:a.ar,mv:a.mv,def:a.def,buy:pr,spent:0,st:'raw'});G.bought++;G.rep=Math.min(5,G.rep+.05);
+ G.ads=G.ads.filter(x=>x.id!=id);G.appts=G.appts.filter(x=>x.ad!=id);push('🏠 Куплено: '+a.name);go('prorab')})}
+const rc=(o,i)=>Math.round(o.ar*RP[i][1]*(o.def.includes('sewer')?1.3:1)+(o.def.includes('bugs')?40000:0));
+function repair(id,i){const o=G.own.find(x=>x.id==id),c=rc(o,i),r=RP[i];if(G.money<c)return toast('Не хватает денег');G.money-=c;o.spent+=c;o.st='rep';o.type=i;o.gain=R(r[4],r[5]);o.left=R(r[2],r[3]);
+ if(Math.random()<.15){o.left+=2;push('🍺 Бригада ушла в запой: +2 дня')}o.tot=o.left;if(o.def.includes('bugs'))push('🪳 Вскрыты клопы: оплачена дезинсекция');render()}
+function sell(id){const o=G.own.find(x=>x.id==id),p=+$('sp'+id).value;if(!(p>0))return;const r=p/o.val,ch=r<=1.05?1:r>=1.3?0:(1.3-r)/.25;
+ if(Math.random()>ch){addMin(60);toast('Покупатели не берут по такой цене. Прошёл час.');return render()}
+ sign('Договор продажи',`${o.name}. Сумма: ${f(p)}`,()=>{G.money+=p;G.net+=p-o.buy-o.spent;G.sold++;G.rep=Math.min(5,G.rep+.05);G.own=G.own.filter(x=>x.id!=id);push('💰 Продано за '+f(p)+'. Прибыль: '+f(p-o.buy-o.spent));go('prorab')})}
+function take(i){const b=BK[i],a=+$('ln'+i).value,owed=G.loans.filter(l=>l.b==i).reduce((s,l)=>s+l.amt,0);
+ if(!(a>0))return;if(G.ci<b[1])return toast('❌ Отказ: низкий кредитный рейтинг');if(a+owed>b[3])return toast('Превышен лимит банка');
+ sign('Кредитный договор',`${b[0]}: ${f(a)} под ${b[2]*100}% в день`,()=>{G.money+=a;G.loans.push({b:i,amt:a,rate:b[2],day:G.day});push('🏦 Кредит одобрен: '+f(a));render()})}
+function repay(i){const l=G.loans[i];if(G.money<l.amt)return toast('Не хватает денег');G.money-=l.amt;
+ if(l.day==G.day){G.ci=Math.max(0,G.ci-5);push('🏦 Банк не успел заработать прибыль. КИ −5')}else{G.ci=Math.min(100,G.ci+R(2,4));push('🏦 Кредит погашен. КИ растёт')}G.loans.splice(i,1);render()}
+function reissue(){if(G.money<50000)return toast('Нужно 50 000 ₽');G.money-=50000;G.sig=null;addMin(120);reg(()=>{toast('Новая ЭЦП выпущена');render()})}
+function sign(t,d,cb,reg){G.modal=true;const m=$('mod');m.style.display='flex';
+ m.innerHTML=`<div class=box><b>${t}</b><br><small>${d}</small><br><br><canvas id=cv width=320 height=130></canvas><div id=er style="color:#f88;font-size:12px;min-height:16px"></div>
+ <button id=ok>${reg?'Сохранить образец':'Подписать'}</button> <button class=g id=cr>Очистить</button>${reg?'':' <button class="g sm" id=fg>Забыл / аннулировать подпись (50 000 ₽)</button> <button class="g sm" id=cx>Отмена</button>'}</div>`;
+ const c=$('cv'),x=c.getContext('2d');x.lineWidth=2.5;x.lineCap='round';x.strokeStyle='#112';let dr=false,pts=0,st=0;
+ const pos=e=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+ c.onpointerdown=e=>{dr=true;st++;const[a,b]=pos(e);x.beginPath();x.moveTo(a,b);c.setPointerCapture(e.pointerId)};
+ c.onpointermove=e=>{if(!dr)return;const[a,b]=pos(e);x.lineTo(a,b);x.stroke();pts++};c.onpointerup=()=>dr=false;
+ $('cr').onclick=()=>{x.clearRect(0,0,c.width,c.height);pts=st=0};
+ $('ok').onclick=()=>{if(pts<25||st<1){$('er').textContent='Подпись слишком короткая или поле пустое';return}
+  if(reg)G.sig=c.toDataURL();m.style.display='none';G.modal=false;cb()};
+ if(!reg){$('cx').onclick=()=>{m.style.display='none';G.modal=false};
+  $('fg').onclick=()=>{if(G.money<50000){$('er').textContent='Нет 50 000 ₽ на перевыпуск';return}m.style.display='none';G.modal=false;G.money-=50000;G.sig=null;addMin(120);reg2()}}}
+function reg2(){reg(()=>toast('ЭЦП перевыпущена. Договор аннулирован — подпишите заново.'))}
+function reg(cb){sign('Регистрация ЭЦП','Нарисуйте свою подпись — это ваша электронная подпись',cb,true)}
+function over(){G.over=true;const e=$('end');e.style.display='flex';e.innerHTML=`<h1>💀 Банкротство</h1><p>Дней в игре: ${G.day}<br>Сделок: ${G.sold}</p><button onclick="location.reload()">Начать заново</button>`}
+function finish(){G.over=true;const e=$('end');e.style.display='flex';e.innerHTML='<div id=pl>✈️</div><h2 style="opacity:0;animation:fi 1s 6s forwards">Welcome to USA 🇺🇸</h2><style>@keyframes fi{to{opacity:1}}</style>';
+ setTimeout(()=>{e.innerHTML=`<h1>🎉 Титры</h1><p>Вы свалили в закат.<br><br>Дней: <b>${G.day}</b><br>Продано объектов: <b>${G.sold}</b><br>Дизайнерских ремонтов: <b>${G.design}</b><br>Чистая прибыль: <b>${f(G.net)}</b><br>Баланс: <b>${f(G.money)}</b><br>КИ: <b>${G.ci}</b> · Рейтинг: <b>${G.rep.toFixed(2)}</b></p><button onclick="location.reload()">Сыграть ещё</button>`},7500)}
+fill();render();reg(()=>{push('Добро пожаловать в Суровый Флиппинг!');render()});
+setInterval(()=>{if(G.over||G.modal)return;addMin(2)},1000);
+</script></body></html>
